@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Canvas hiển thị biên video</title>
+  <style>
+    canvas, video {
+      width: 480px;
+      height: 270px;
+      border: 1px solid black;
+    }
+  </style>
+</head>
+<body>
+  <h3>Trích xuất biên cạnh của khung hình video</h3>
+  <video id="video" src="video.mp4" controls></video>
+  <canvas id="canvas"></canvas>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    video.addEventListener("play", () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      const tempCanvas = document.createElement("canvas");
+      const tempCtx = tempCanvas.getContext("2d");
+      tempCanvas.width = video.videoWidth;
+      tempCanvas.height = video.videoHeight;
+
+      function processFrame() {
+        if (video.paused || video.ended) return;
+
+        // Vẽ video lên canvas tạm
+        tempCtx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+
+        // Lấy dữ liệu điểm ảnh
+        const frame = tempCtx.getImageData(0, 0, video.videoWidth, video.videoHeight);
+        const length = frame.data.length;
+
+        const grayscale = new Uint8ClampedArray(video.videoWidth * video.videoHeight);
+
+        for (let i = 0; i < length; i += 4) {
+          const r = frame.data[i];
+          const g = frame.data[i + 1];
+          const b = frame.data[i + 2];
+          grayscale[i / 4] = (r + g + b) / 3;
+        }
+
+        const edgeData = new Uint8ClampedArray(length);
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+
+        // Áp dụng edge detection bằng Laplacian đơn giản
+        for (let y = 1; y < h - 1; y++) {
+          for (let x = 1; x < w - 1; x++) {
+            const i = y * w + x;
+            const gx = 
+              -grayscale[i - w - 1] - 2 * grayscale[i - 1] - grayscale[i + w - 1] +
+               grayscale[i - w + 1] + 2 * grayscale[i + 1] + grayscale[i + w + 1];
+            const gy = 
+              -grayscale[i - w - 1] - 2 * grayscale[i - w] - grayscale[i - w + 1] +
+               grayscale[i + w - 1] + 2 * grayscale[i + w] + grayscale[i + w + 1];
+            const edge = Math.sqrt(gx * gx + gy * gy);
+
+            const idx = i * 4;
+            edgeData[idx] = edge;
+            edgeData[idx + 1] = edge;
+            edgeData[idx + 2] = edge;
+            edgeData[idx + 3] = 255;
+          }
+        }
+
+        const imageData = new ImageData(edgeData, w, h);
+        ctx.putImageData(imageData, 0, 0);
+
+        requestAnimationFrame(processFrame);
+      }
+
+      processFrame();
+    });
+  </script>
+</body>
+</html>
